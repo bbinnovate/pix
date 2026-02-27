@@ -31,7 +31,7 @@ export function ImageEffects({
   currentFilterValue,
 }: ImageEffectsProps) {
   return (
-    <div className="space-y-4 p-4 border rounded-lg">
+    <div className="space-y-4 p-4 border rounded-[10px]">
       <div className="space-y-2">
         <Label>Rotation</Label>
         <div className="flex items-center gap-2">

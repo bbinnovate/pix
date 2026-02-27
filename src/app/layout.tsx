@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
-
+import localFont from "next/font/local";
 const inter = Inter({ subsets: ["latin"] });
 
 export const viewport: Viewport = {
@@ -28,13 +29,25 @@ export const metadata: Metadata = {
   },
 };
 
+
+const miso = localFont({
+  src: [{ path: "../fonts/VAG-Regular2.otf", weight: "400" }],
+  variable: "--font-miso",
+});
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-poppins",
+});
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${miso.variable} ${poppins.variable}`}>
       <body className={inter.className}>{children}</body>
     </html>
   );
