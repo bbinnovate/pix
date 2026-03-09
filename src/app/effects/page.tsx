@@ -4,12 +4,12 @@ import Effect from '../components/Effect'
 import Footer from '../components/Footer'
 import SmoothScroll from '../components/SmoothScroll'
 import Taxi from '../components/Taxi'
-import { Metadata } from 'next'
+import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Image Compression Tool | Bombay Blokes",
+  title: "Online Photo Effects Editor | Bombay Blokes",
   description:
-    "Compress your images online with our free image compression tool. Reduce file size without sacrificing quality, perfect for web optimization and faster loading times.",
+    "Enhance photos with stylish filters, color tuning, and creative effects in one click. Designed for fast, high-quality visual editing without complex software. Free, beginner-friendly, and fully browser-based.",
 };
 
 const Index = () => {

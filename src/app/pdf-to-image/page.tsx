@@ -4,12 +4,12 @@ import PdfToImage from '../components/PdfToImage'
 import Footer from '../components/Footer'
 import SmoothScroll from '../components/SmoothScroll'
 import Taxi from '../components/Taxi'
-import { Metadata } from 'next'
+import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Image Compression Tool | Bombay Blokes",
+  title: "Convert PDF to JPG & PNG Online | Bombay Blokes",
   description:
-    "Compress your images online with our free image compression tool. Reduce file size without sacrificing quality, perfect for web optimization and faster loading times.",
+    "Turn PDF pages into high-quality JPG or PNG images instantly. Great for presentations, design work, and easy sharing. No software required, secure file handling, and quick browser-based conversion.",
 };
 
 const Index = () => {

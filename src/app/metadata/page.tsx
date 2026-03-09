@@ -4,12 +4,12 @@ import MetadataPage from '../components/Metadata'
 import Footer from '../components/Footer'
 import SmoothScroll from '../components/SmoothScroll'
 import Taxi from '../components/Taxi'
-import { Metadata } from 'next'
+import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Image Compression Tool | Bombay Blokes",
+  title: "View & Edit File Metadata Online | Bombay Blokes",
   description:
-    "Compress your images online with our free image compression tool. Reduce file size without sacrificing quality, perfect for web optimization and faster loading times.",
+    "Inspect, edit, or remove image and file metadata easily. View EXIF, IPTC, and hidden file details, protect privacy, and prepare files for publishing. Free online tool with secure in-browser processing.",
 };
 
 const Index = () => {

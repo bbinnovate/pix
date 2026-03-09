@@ -4,12 +4,13 @@ import Compress from '../components/Compress'
 import Footer from '../components/Footer'
 import SmoothScroll from '../components/SmoothScroll'
 import Taxi from '../components/Taxi'
-import { Metadata } from 'next'
+
+import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Image Compression Tool | Bombay Blokes",
+  title: "Compress Images & PDFs Online | Bombay Blokes",
   description:
-    "Compress your images online with our free image compression tool. Reduce file size without sacrificing quality, perfect for web optimization and faster loading times.",
+    "Shrink image and PDF file sizes in seconds without noticeable quality loss. Ideal for email attachments, faster uploads, and web performance. 100% free, secure processing, and works directly in your browser.",
 };
 
 const Index = () => {

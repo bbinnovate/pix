@@ -4,12 +4,12 @@ import Resize from '../components/Resize'
 import Footer from '../components/Footer'
 import SmoothScroll from '../components/SmoothScroll'
 import Taxi from '../components/Taxi'
-import { Metadata } from 'next'
+import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Image Compression Tool | Bombay Blokes",
+  title: "Image Resizer Online | Bombay Blokes",
   description:
-    "Compress your images online with our free image compression tool. Reduce file size without sacrificing quality, perfect for web optimization and faster loading times.",
+    "Resize images to exact dimensions for Instagram, websites, forms, and documents. Maintain clarity while adjusting size instantly. Drag-and-drop interface, universal format support, and free secure downloads.",
 };
 
 const Index = () => {
