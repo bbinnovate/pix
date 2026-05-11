@@ -9,7 +9,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#f8b416", // Yellow theme color
-};
+}; 
 
 export const metadata: Metadata = {
   title: "Free Online Tools | Bombay Blokes",

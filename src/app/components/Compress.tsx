@@ -9,14 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DialogDescription } from "@/components/ui/dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -24,15 +16,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import JSZip from "jszip";
 import { saveAs } from "file-saver";
-import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, X } from "lucide-react";
 import {  Filter } from "@/components/ui/image-effects";
 import Image from "next/image";
+import { clsx } from 'clsx';
 
 
 type CompressionLevel = "1x" | "2x" | "3x" | "4x" | "custom";
-type WatermarkPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
+type WatermarkPosition =
+  | "all"
+  | "top-left"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-right"
+  | "center";
+  
+
 type WatermarkType = "text" | "logo";
 type RenamePattern = "original" | "datetime" | "sequence" | "custom";
 
@@ -44,7 +44,38 @@ interface ImageMetadata {
   filter?: Filter;
   filterValue?: number;
 }
+const compressionOptions = [
+  {
+    value: "1x",
+    label: "1x (Light) - 1920px, 80% quality",
+  },
+  {
+    value: "2x",
+    label: "2x (Medium) - 1440px, 70% quality",
+  },
+  {
+    value: "3x",
+    label: "3x (High) - 1080px, 60% quality",
+  },
+  {
+    value: "4x",
+    label: "4x (Maximum) - 800px, 50% quality",
+  },
+  {
+    value: "custom",
+    label: "Custom Settings",
+  },
+];
 
+
+const watermarkOptions = [
+  { value: "all", label: "All Positions" },
+  { value: "top-left", label: "Top Left" },
+  { value: "top-right", label: "Top Right" },
+  { value: "center", label: "Center" },
+  { value: "bottom-left", label: "Bottom Left" },
+  { value: "bottom-right", label: "Bottom Right" },
+];
 const Compress = () => {
      const [files, setFiles] = useState<File[]>([]);
       const [progress, setProgress] = useState(0);
@@ -55,17 +86,21 @@ const Compress = () => {
       const [watermarkText, setWatermarkText] = useState("");
       const [watermarkLogo, setWatermarkLogo] = useState<File | null>(null);
       const [watermarkPosition, setWatermarkPosition] = useState<WatermarkPosition>("bottom-right");
-      const [previewOpen, setPreviewOpen] = useState(false);
+      const [watermarkOpacity, setWatermarkOpacity] = useState(50);
+      const [watermarkWidth, setWatermarkWidth] = useState(15);
       const [previewImages, setPreviewImages] = useState<string[]>([]);
       const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
       const [processedBlobs, setProcessedBlobs] = useState<Blob[]>([]);
-    
+      const [isDragging, setIsDragging] = useState(false);
+      const [isCompressionOpen, setIsCompressionOpen] = useState(false);
       const [customQuality, setCustomQuality] = useState(80);
       const [customMaxSize, setCustomMaxSize] = useState(1920);
       const [renamePattern, setRenamePattern] = useState<RenamePattern>("original");
       const [customNamePattern, setCustomNamePattern] = useState("");
       const [imageMetadata, setImageMetadata] = useState<ImageMetadata[]>([]);
       const [showThumbnails, setShowThumbnails] = useState(true);
+      const [isWatermarkDropdownOpen, setIsWatermarkDropdownOpen] =
+  useState(false);
       const [currentImageEffects, setCurrentImageEffects] = useState<{
         rotation: number;
         filter: Filter;
@@ -76,41 +111,8 @@ const Compress = () => {
         filterValue: 50,
       });
     
-      const handleClosePreview = useCallback(() => {
-        setPreviewOpen(false);
-        setCurrentPreviewIndex(0);
-        // Clean up after closing to avoid UI flickering
-        setTimeout(() => {
-          previewImages.forEach(URL.revokeObjectURL);
-          setPreviewImages([]);
-          setProcessedBlobs([]);
-        }, 100);
-      }, [previewImages]);
-    
-      useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-          if (!previewOpen) return;
-    
-          switch (e.key) {
-            case "ArrowLeft":
-              setCurrentPreviewIndex((prev) => 
-                prev > 0 ? prev - 1 : previewImages.length - 1
-              );
-              break;
-            case "ArrowRight":
-              setCurrentPreviewIndex((prev) => 
-                prev < previewImages.length - 1 ? prev + 1 : 0
-              );
-              break;
-            case "Escape":
-              handleClosePreview();
-              break;
-          }
-        };
-    
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-      }, [previewOpen, previewImages.length, handleClosePreview]);
+
+ 
     
       const getImageMetadata = (file: File): Promise<ImageMetadata> => {
         return new Promise((resolve) => {
@@ -174,14 +176,76 @@ const Compress = () => {
             return `${baseName}_${timestamp}.${ext}`;
           case "sequence":
             return `image_${String(index + 1).padStart(3, "0")}.${ext}`;
-          case "custom":
-            return `${customNamePattern.replace("{name}", baseName)}
-                                     .replace("{n}", String(index + 1).padStart(3, "0")}
-                                     .replace("{date}", timestamp)}.${ext}`;
+          case "custom": {
+  const today = new Date();
+
+  const formattedDate = today.toLocaleDateString("en-GB")
+    .replace(/\//g, "-"); // 12-05-2026
+
+  const cleanName = customNamePattern.trim() || "image";
+
+  return `${cleanName}_${formattedDate}.${ext}`;
+}
           default:
             return originalName;
         }
       };
+
+
+      const getWatermarkPositions = (
+  canvas: HTMLCanvasElement,
+  itemWidth: number,
+  itemHeight: number
+) => {
+  const padding = 20;
+
+  return {
+    "top-left": {
+      x: padding,
+      y: padding,
+    },
+
+    // "top-center": {
+    //   x: (canvas.width - itemWidth) / 2,
+    //   y: padding,
+    // },
+
+    "top-right": {
+      x: canvas.width - itemWidth - padding,
+      y: padding,
+    },
+
+    // "center-left": {
+    //   x: padding,
+    //   y: (canvas.height - itemHeight) / 2,
+    // },
+
+    center: {
+      x: (canvas.width - itemWidth) / 2,
+      y: (canvas.height - itemHeight) / 2,
+    },
+
+    // "center-right": {
+    //   x: canvas.width - itemWidth - padding,
+    //   y: (canvas.height - itemHeight) / 2,
+    // },
+
+    "bottom-left": {
+      x: padding,
+      y: canvas.height - itemHeight - padding,
+    },
+
+    // "bottom-center": {
+    //   x: (canvas.width - itemWidth) / 2,
+    //   y: canvas.height - itemHeight - padding,
+    // },
+
+    "bottom-right": {
+      x: canvas.width - itemWidth - padding,
+      y: canvas.height - itemHeight - padding,
+    },
+  };
+};
     
       const addWatermarkLogo = async (
         ctx: CanvasRenderingContext2D,
@@ -197,7 +261,9 @@ const Compress = () => {
               ctx.save();
               
               // Calculate logo size (max 15% of the smaller canvas dimension)
-              const maxSize = Math.min(canvas.width, canvas.height) * 0.15;
+              const maxSize =
+  Math.min(canvas.width, canvas.height) *
+  (watermarkWidth / 100);
               let logoWidth = img.width;
               let logoHeight = img.height;
               
@@ -213,37 +279,47 @@ const Compress = () => {
                 }
               }
     
-              // Calculate position
-              const padding = 20;
-              let x = 0;
-              let y = 0;
     
-              switch (position) {
-                case "top-left":
-                  x = padding;
-                  y = padding;
-                  break;
-                case "top-right":
-                  x = canvas.width - logoWidth - padding;
-                  y = padding;
-                  break;
-                case "bottom-left":
-                  x = padding;
-                  y = canvas.height - logoHeight - padding;
-                  break;
-                case "bottom-right":
-                  x = canvas.width - logoWidth - padding;
-                  y = canvas.height - logoHeight - padding;
-                  break;
-                case "center":
-                  x = (canvas.width - logoWidth) / 2;
-                  y = (canvas.height - logoHeight) / 2;
-                  break;
-              }
+    
+           ctx.globalAlpha = watermarkOpacity / 100;
+
+
+const positions = getWatermarkPositions(
+  canvas,
+  logoWidth,
+  logoHeight
+);
+
+if (position === "all") {
+  Object.values(positions).forEach((pos) => {
+    ctx.drawImage(
+      img,
+      pos.x,
+      pos.y,
+      logoWidth,
+      logoHeight
+    );
+  });
+} else {
+  const pos = positions[position];
+
+  if (pos) {
+    ctx.drawImage(
+      img,
+      pos.x,
+      pos.y,
+      logoWidth,
+      logoHeight
+    );
+  }
+}
+
+
+
+
     
               // Draw logo with slight transparency
-              ctx.globalAlpha = 0.5;
-              ctx.drawImage(img, x, y, logoWidth, logoHeight);
+              ctx.globalAlpha = watermarkOpacity / 100;
               ctx.restore();
               resolve();
             };
@@ -264,44 +340,48 @@ const Compress = () => {
         ctx.save();
         
         // Set watermark style
-        ctx.font = "bold 24px Arial";
-        ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-        ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+        const fontSize =
+  Math.min(canvas.width, canvas.height) *
+  (watermarkWidth / 100) *
+  0.3;
+
+ctx.font = `bold ${fontSize}px Arial`;
+
+ctx.fillStyle = `rgba(255,255,255,${
+  watermarkOpacity / 100
+})`;
+
+ctx.strokeStyle = `rgba(0,0,0,${
+  watermarkOpacity / 100
+})`;
         ctx.lineWidth = 2;
         
         // Calculate text metrics
         const metrics = ctx.measureText(text);
-        const padding = 20;
+       const positions = getWatermarkPositions(
+  canvas,
+  metrics.width,
+  fontSize
+);
+
+const drawText = (x: number, y: number) => {
+  ctx.strokeText(text, x, y);
+  ctx.fillText(text, x, y);
+};
+
+if (position === "all") {
+  Object.values(positions).forEach((pos) => {
+    drawText(pos.x, pos.y + fontSize);
+  });
+} else {
+  const pos = positions[position];
+
+  if (pos) {
+    drawText(pos.x, pos.y + fontSize);
+  }
+}
         
-        // Calculate position
-        let x = 0;
-        let y = 0;
-        
-        switch (position) {
-          case "top-left":
-            x = padding;
-            y = padding + 24;
-            break;
-          case "top-right":
-            x = canvas.width - metrics.width - padding;
-            y = padding + 24;
-            break;
-          case "bottom-left":
-            x = padding;
-            y = canvas.height - padding;
-            break;
-          case "bottom-right":
-            x = canvas.width - metrics.width - padding;
-            y = canvas.height - padding;
-            break;
-          case "center":
-            x = (canvas.width - metrics.width) / 2;
-            y = canvas.height / 2;
-            break;
-        }
-        
-        ctx.strokeText(text, x, y);
-        ctx.fillText(text, x, y);
+       
         ctx.restore();
       };
     
@@ -442,10 +522,8 @@ const Compress = () => {
           processed.push(compressedBlob);
           
           // Create preview URLs for the first 5 images
-          if (i < 5) {
-            const previewUrl = URL.createObjectURL(compressedBlob);
-            previews.push(previewUrl);
-          }
+          const previewUrl = URL.createObjectURL(compressedBlob);
+previews.push(previewUrl);
           
           setProgress(((i + 1) / files.length) * 100);
         }
@@ -454,69 +532,62 @@ const Compress = () => {
         setPreviewImages(previews);
         if (!isRotation) {
           setCurrentPreviewIndex(0);
-          setPreviewOpen(true);
+     
         }
         setIsProcessing(false);
       }, [files, compressionLevel, customQuality, customMaxSize, renamePattern, customNamePattern, imageMetadata, enableWatermark, watermarkType, watermarkText, watermarkLogo, watermarkPosition, currentImageEffects, previewImages]);
     
-     const handleDownload = async () => {
+   const handleDownload = async () => {
   try {
-    console.log("FILES:", files);
-    console.log("BLOBS:", processedBlobs);
-
     if (!processedBlobs || processedBlobs.length === 0) {
       alert("No processed images found. Click Preview first.");
       return;
     }
 
-    const zip = new JSZip();
-    const folder = zip.folder("compressed-images");
-
-    if (!folder) {
-      throw new Error("ZIP folder creation failed");
-    }
-
     processedBlobs.forEach((blob, index) => {
-      if (!blob) {
-        console.error("Skipping null blob at index", index);
-        return;
-      }
+      if (!blob) return;
 
-      const fileName = generateFileName(files[index]?.name || `image_${index}`, index);
-      console.log("Adding file:", fileName);
+      const fileName = generateFileName(
+  (files[index]?.name || `image_${index}.jpg`).replace(/\s+/g, "_"),
+  index
+);
 
-      folder.file(fileName, blob);
+      saveAs(blob, fileName);
     });
-
-    console.log("Generating ZIP...");
-
-    const content = await zip.generateAsync({ type: "blob" });
-
-    console.log("ZIP READY:", content);
-
-    if (!content) {
-      throw new Error("ZIP generation failed");
-    }
-
-    saveAs(content, `compressed-images-${compressionLevel}.zip`);
-
-    console.log("DOWNLOAD TRIGGERED");
 
   } catch (error) {
     console.error("DOWNLOAD ERROR:", error);
     alert("Download failed. Check console.");
   }
 };
-      const dropHandler = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        if (e.dataTransfer.files) {
-          setFiles(Array.from(e.dataTransfer.files));
-        }
-      }, []);
-    
-      const dragOverHandler = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-      }, []); 
+     const dragOverHandler = (e: React.DragEvent<HTMLDivElement>) => {
+  e.preventDefault();
+  setIsDragging(true);
+};
+
+const dragLeaveHandler = () => {
+  setIsDragging(false);
+};
+
+const dropHandler = async (e: React.DragEvent<HTMLDivElement>) => {
+  e.preventDefault();
+  setIsDragging(false);
+
+  const droppedFiles = Array.from(e.dataTransfer.files).filter((file) =>
+    file.type.startsWith("image/")
+  );
+
+  if (droppedFiles.length > 0) {
+    setFiles(droppedFiles);
+
+    // generate metadata
+    const metadata = await Promise.all(
+      droppedFiles.map((file) => getImageMetadata(file))
+    );
+
+    setImageMetadata(metadata);
+  }
+};
 
       const handleRotate = useCallback(() => {
         setCurrentImageEffects(prev => {
@@ -526,70 +597,333 @@ const Compress = () => {
       }, []);
 
       // Re-process images when effects change if preview is open
-      useEffect(() => {
-        if (previewOpen) {
-          processImages(true);
-        }
-      }, [currentImageEffects.rotation, previewOpen]); // Only track rotation for now to avoid loops
+useEffect(() => {
+  if (files.length === 0) return;
+
+  const timeout = setTimeout(() => {
+    processImages(true);
+  }, 150);
+
+  return () => clearTimeout(timeout);
+}, [
+  files,
+  currentImageEffects,
+  compressionLevel,
+  watermarkText,
+  enableWatermark,
+  watermarkPosition,
+  watermarkOpacity,
+  watermarkWidth,
+  customQuality,
+  customMaxSize,
+]);
+
+
+     const removeImage = (indexToRemove: number) => {
+  const updatedPreviews = previewImages.filter(
+    (_, index) => index !== indexToRemove
+  );
+
+  const updatedFiles = files.filter(
+    (_, index) => index !== indexToRemove
+  );
+
+  setPreviewImages(updatedPreviews);
+  setFiles(updatedFiles);
+
+  if (currentPreviewIndex >= updatedPreviews.length) {
+    setCurrentPreviewIndex(
+      Math.max(updatedPreviews.length - 1, 0)
+    );
+  }
+};
+
+
+const handleAddMoreImages = async (
+  e: React.ChangeEvent<HTMLInputElement>
+) => {
+  if (!e.target.files) return;
+
+  const newFiles = Array.from(e.target.files);
+
+  const metadata = await Promise.all(
+    newFiles.map((file) => getImageMetadata(file))
+  );
+
+  // append files
+  setFiles((prev) => [...prev, ...newFiles]);
+
+  // append metadata
+  setImageMetadata((prev) => [...prev, ...metadata]);
+
+  // append preview urls
+  const newPreviewUrls = newFiles.map((file) =>
+    URL.createObjectURL(file)
+  );
+
+  setPreviewImages((prev) => [
+    ...prev,
+    ...newPreviewUrls,
+  ]);
+
+  // reset input
+  e.target.value = "";
+};
   return (
-  <div className="min-h-[calc(100vh-160px)] flex justify-center px-6 lg:pt-40  pt-0">
-    <Card className="w-full max-w-3xl">
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold text-center">
-                Bulk Image Compression & Watermarking
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div
-                className="border-2 border-dashed rounded-lg p-8 text-center mb-4"
-                onDrop={dropHandler}
-                onDragOver={dragOverHandler}
-              >
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  id="file-input"
-                />
-                <label
-                  htmlFor="file-input"
-                  className="cursor-pointer text-primary hover:text-primary/80"
-                >
-                  Click to upload
-                </label>{" "}
-                or drag and drop your images here
-                {files.length > 0 && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {files.length} file(s) selected
-                  </p>
-                )}
-              </div>
+  <div className=" container min-h-[calc(100vh-160px)] flex justify-center flex-col px-6 lg:pt-20  pt-0">
+
+ 
+<div className="w-full max-w-[1600px] mx-auto flex flex-col lg:flex-row  lg:gap-6 gap-0 ">
     
-              {files.length > 0 && (
-                <div className="space-y-6">
-                  <div className="space-y-4">
+    {/* LEFT SIDE - IMAGE PREVIEW */}
+    <div className="w-full  lg:w-[70%] lg:pt-10  pt-0 ">
+
+<div className="relative w-full min-h-[400px] rounded-[28px] flex items-center justify-center overflow-hidden">{/* {isProcessing && (
+  <div className="absolute  inset-0 z-20  backdrop-blur-sm flex items-center justify-center">
+    
+    <div className="flex flex-col items-center gap-4">
+      
+      <div className="w-14 h-14 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+
+      <p className="text-white text-sm font-medium tracking-wide animate-pulse">
+        Updating Preview...
+      </p>
+
+    </div>
+  </div>
+)} */}
+        {/* IMAGE */}
+        {previewImages.length > 0 ? (
+         <Image
+  src={previewImages[currentPreviewIndex]}
+  alt="Preview"
+  width={700}
+  height={700}
+  className="object-contain  lg:mt-0 mt-20 max-h-[450px] w-auto h-auto border-2   border-black rounded-[20px] shadow-lg p-2 bg-white"
+  unoptimized
+/>
+        ) : (
+            <div
+  className={`container border-2 border-dashed rounded-[24px]
+  lg:h-[370px] h-[220px]
+  lg:mt-0 mt-20
+  px-6 py-8
+  text-center
+  flex flex-col items-center justify-center
+  gap-3
+  mb-4
+  transition-all duration-300 ${
+    isDragging
+      ? "bg-yellow-50 border-yellow-300"
+      : "bg-background border-border"
+  }`}
+  onDrop={dropHandler}
+  onDragOver={dragOverHandler}
+  onDragLeave={dragLeaveHandler}
+>
+  <input
+    type="file"
+    multiple
+    accept="image/*"
+    onChange={handleFileChange}
+    className="hidden"
+    id="file-input"
+  />
+
+  <label
+    htmlFor="file-input"
+    className="
+      cursor-pointer
+      bg-black
+      text-white
+      px-5 py-3
+      rounded-xl
+      text-sm lg:text-base
+      font-medium
+      transition-all
+      hover:scale-[1.03]
+      hover:bg-[#222]
+    "
+  >
+    Click to Upload
+  </label>
+
+  <p className="text-sm lg:text-base text-muted-foreground max-w-[280px] leading-relaxed">
+    or drag and drop your images here
+  </p>
+
+  {files.length > 0 && (
+    <p className="text-sm text-muted-foreground">
+      {files.length} file(s) selected
+    </p>
+  )}
+</div>
+        )}
+
+        {/* NAVIGATION */}
+        {previewImages.length > 1 && (
+          <>
+
+        
+            <button
+              onClick={() =>
+                setCurrentPreviewIndex((prev) =>
+                  prev > 0 ? prev - 1 : previewImages.length - 1
+                )
+              }
+              className="absolute left-4 top-1/2 -translate-y-1/2 lg:mt-0 mt-10  bg-black backdrop-blur-md text-white lg:p-3 p-1 rounded-full"
+            >
+              <ChevronLeft />
+            </button>
+
+            <button
+              onClick={() =>
+                setCurrentPreviewIndex((prev) =>
+                  prev < previewImages.length - 1 ? prev + 1 : 0
+                )
+              }
+              className="absolute right-4 top-1/2 -translate-y-1/2 lg:mt-0 mt-10 bg-black backdrop-blur-md text-white lg:p-3 p-1 rounded-full"
+            >
+              <ChevronRight />
+            </button>
+           
+          </>
+        )}
+      </div>
+
+      {/* THUMBNAILS */}
+      {/* THUMBNAILS */}
+{previewImages.length > 0 && (
+  
+  <div
+  className="
+    grid
+    grid-cols-3
+    sm:grid-cols-4
+    md:grid-cols-5
+    lg:grid-cols-6
+    gap-1
+    lg:mt-6 mt-3
+    pb-2
+  "
+>
+    {previewImages.map((preview, index) => (
+      <div
+        key={index}
+        className={clsx(
+          "relative w-24 h-24 rounded-[22px] overflow-hidden border-2 flex-shrink-0 transition-all duration-200",
+          index === currentPreviewIndex
+            ? "border-yellow-400 "
+            : "border-transparent"
+        )}
+      >
+        {/* REMOVE BUTTON */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            removeImage(index);
+          }}
+          className="absolute top-1 right-2 z-20 w-5 h-5 rounded-full bg-black hover:bg-[#fab31e] text-white flex items-center justify-center shadow-lg hover:scale-110 transition-all"
+        >
+          <X size={14} />
+        </button>
+
+        {/* IMAGE */}
+        <button
+          type="button"
+          onClick={() => setCurrentPreviewIndex(index)}
+          className="relative w-full h-full"
+        >
+          <Image
+            src={preview}
+            alt=""
+            fill
+            className="object-cover"
+            unoptimized
+          />
+        </button>
+      </div>
+    ))}
+
+    {/* ADD MORE */}
+   <>
+  <input
+    type="file"
+    multiple
+    accept="image/*"
+    id="add-more-images"
+    className="hidden"
+    onChange={handleAddMoreImages}
+  />
+
+  <label
+    htmlFor="add-more-images"
+    className="w-24 h-24 rounded-[22px] bg-[#151217] flex items-center justify-center flex-shrink-0 cursor-pointer transition-all "
+  >
+    <Plus className="text-white" size={26} />
+  </label>
+</>
+  </div>
+)}
+    </div>
+
+    {/* RIGHT SIDE - EDIT PANEL */}
+    <div className="w-full lg:w-[30%] relative">
+<div className="bg-white h-[70%] min-h-[805px]  p-6 pb-40 space-y-6 shadow-[-10px_0px_30px_rgba(0,0,0,0.04)]">                <div className="space-y-6">
+                  <div className="space-y-6 lg:pt-10  pt-0">
                     <div className="flex flex-col space-y-2">
                       <Label htmlFor="compression-level">Compression Level</Label>
-                      <Select
-                        value={compressionLevel}
-                        onValueChange={(value: string) => setCompressionLevel(value as CompressionLevel)}
-                      >
-                        <SelectTrigger id="compression-level">
-                          <SelectValue placeholder="Select compression level" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1x">1x (Light) - 1920px, 80% quality</SelectItem>
-                          <SelectItem value="2x">2x (Medium) - 1440px, 70% quality</SelectItem>
-                          <SelectItem value="3x">3x (High) - 1080px, 60% quality</SelectItem>
-                          <SelectItem value="4x">4x (Maximum) - 800px, 50% quality</SelectItem>
-                          <SelectItem value="custom">Custom Settings</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="relative isolate">
+  <button
+    type="button"
+    onClick={() => setIsCompressionOpen((prev) => !prev)}
+    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-all hover:border-gray-400 focus:outline-none"
+  >
+    <span>
+      {
+        compressionOptions.find(
+          (item) => item.value === compressionLevel
+        )?.label
+      }
+    </span>
+
+    <ChevronDown
+      className={`h-4 w-4 transition-transform duration-200 ${
+        isCompressionOpen ? "rotate-180" : ""
+      }`}
+    />
+  </button>
+
+  {isCompressionOpen && (
+<div className="absolute left-0 top-[calc(100%+8px)] z-[99999] w-full rounded-xl border border-gray-200 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)] backdrop-blur-xl">      <div className="max-h-[260px] overflow-y-auto p-1">
+        {compressionOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => {
+              setCompressionLevel(
+                option.value as CompressionLevel
+              );
+              setIsCompressionOpen(false);
+            }}
+            className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-all ${
+              compressionLevel === option.value
+                ? "bg-black text-white"
+                : "hover:bg-gray-100"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
     
+                    </div>
                       {compressionLevel === "custom" && (
-                        <div className="space-y-4 mt-4">
+                        <div className="space-y-4 mt-40">
                           <div className="space-y-2">
                             <div className="flex justify-between">
                               <Label>Quality ({customQuality}%)</Label>
@@ -614,7 +948,6 @@ const Compress = () => {
                           </div>
                         </div>
                       )}
-                    </div>
     
                     <div className="border-t pt-4">
                       <Label>File Naming</Label>
@@ -644,16 +977,14 @@ const Compress = () => {
                       {renamePattern === "custom" && (
                         <div className="mt-2">
                           <Input
-                            placeholder="Pattern: {name}_{n}_{date}"
-                            value={customNamePattern}
-                            onChange={(e) => setCustomNamePattern(e.target.value)}
-                          />
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Available variables: {"{name}"}, {"{n}"}, {"{date}"}
-                          </p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Example: If pattern is &quot;photo_{'{n}'}_{'{date}'}&quot; → &quot;photo_001_2024-03-21T15-30-45&quot;
-                          </p>
+  placeholder="Enter file name"
+  value={customNamePattern}
+  onChange={(e) => setCustomNamePattern(e.target.value)}
+/>
+
+<p className="text-sm text-muted-foreground mt-1">
+  Example: vacation → vacation_12-05-2026.jpg
+</p>
                         </div>
                       )}
                     </div>
@@ -736,24 +1067,99 @@ const Compress = () => {
                               </div>
                             </div>
                           )}
+
+
+                           <div className="space-y-4">
+
+  {/* WIDTH */}
+  <div className="space-y-2">
+    <div className="flex items-center justify-between">
+      <Label>Watermark Width</Label>
+      <span className="text-sm text-muted-foreground">
+        {watermarkWidth}%
+      </span>
+    </div>
+
+    <Slider
+      value={[watermarkWidth]}
+      onValueChange={(value) => setWatermarkWidth(value[0])}
+      min={5}
+      max={50}
+      step={1}
+    />
+  </div>
+
+  {/* OPACITY */}
+  <div className="space-y-2">
+    <div className="flex items-center justify-between">
+      <Label>Opacity</Label>
+      <span className="text-sm text-muted-foreground">
+        {watermarkOpacity}%
+      </span>
+    </div>
+
+    <Slider
+      value={[watermarkOpacity]}
+      onValueChange={(value) => setWatermarkOpacity(value[0])}
+      min={5}
+      max={100}
+      step={1}
+    />
+  </div>
+
+</div>
     
                           <div className="space-y-2">
                             <Label htmlFor="watermark-position">Watermark Position</Label>
-                            <Select
-                              value={watermarkPosition}
-                              onValueChange={(value: string) => setWatermarkPosition(value as WatermarkPosition)}
-                            >
-                              <SelectTrigger id="watermark-position">
-                                <SelectValue placeholder="Select position" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="top-left">Top Left</SelectItem>
-                                <SelectItem value="top-right">Top Right</SelectItem>
-                                <SelectItem value="center">Center</SelectItem>
-                                <SelectItem value="bottom-left">Bottom Left</SelectItem>
-                                <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <div className="relative">
+  <button
+    type="button"
+    onClick={() =>
+      setIsWatermarkDropdownOpen((prev) => !prev)
+    }
+    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-all hover:border-gray-400 focus:outline-none"
+  >
+    <span>
+      {
+        watermarkOptions.find(
+          (item) => item.value === watermarkPosition
+        )?.label
+      }
+    </span>
+
+    <ChevronDown
+      className={`h-4 w-4 transition-transform duration-200 ${
+        isWatermarkDropdownOpen ? "rotate-180" : ""
+      }`}
+    />
+  </button>
+
+  {isWatermarkDropdownOpen && (
+    <div className="absolute left-0 top-full z-[9999] mt-2 w-full overflow-hidden rounded-xl border bg-white shadow-2xl">
+      <div className="p-1">
+        {watermarkOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => {
+              setWatermarkPosition(
+                option.value as WatermarkPosition
+              );
+              setIsWatermarkDropdownOpen(false);
+            }}
+            className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-all ${
+              watermarkPosition === option.value
+                ? "bg-black text-white"
+                : "hover:bg-gray-100"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
                           </div>
                         </div>
                       )}
@@ -769,7 +1175,7 @@ const Compress = () => {
                     </div>
                   )}
                   
-                  <Button
+                  {/* <Button
                     className="w-full"
                     onClick={() => processImages()}
                     disabled={
@@ -780,145 +1186,33 @@ const Compress = () => {
                     }
                   >
                     {isProcessing ? "Processing..." : "Preview Results"}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-    
-          <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-           <DialogContent
-  className="max-w-4xl bg-white"
-  onPointerDownOutside={(e) => e.preventDefault()}
-  onEscapeKeyDown={(e) => e.preventDefault()} 
->
-            <DialogHeader>
-  <DialogTitle>Preview Results</DialogTitle>
-  <DialogDescription>
-    Preview compressed images before downloading.
-  </DialogDescription>
-</DialogHeader>
-              
-              <div className="space-y-4">
-                <div className="relative aspect-video bg-black rounded-[15px] overflow-hidden">
-                  {previewImages.length > 0 && (
-                    <Image
-                      src={previewImages[currentPreviewIndex]}
-                      alt={`Preview ${currentPreviewIndex + 1}`}
-                      fill
-                      className="object-contain"
-                      unoptimized
-                    />
-                  )}
-                  
-                  {previewImages.length > 1 && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="absolute left-2 top-1/2 -translate-y-1/2"
-                        onClick={() => setCurrentPreviewIndex((prev) => 
-                          prev > 0 ? prev - 1 : previewImages.length - 1
-                        )}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="absolute right-2 top-1/2 -translate-y-1/2"
-                        onClick={() => setCurrentPreviewIndex((prev) => 
-                          prev < previewImages.length - 1 ? prev + 1 : 0
-                        )}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-    
-                {showThumbnails && previewImages.length > 1 && (
-                  <div className="flex space-x-2 overflow-x-auto pb-2">
-                    {previewImages.map((preview, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setCurrentPreviewIndex(index)}
-                        className={`relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden ${
-                          index === currentPreviewIndex ? "ring-2 ring-primary" : ""
-                        }`}
-                      >
-                        <Image
-                          src={preview}
-                          alt={`Thumbnail ${index + 1}`}
-                          fill
-                          className="object-cover"
-                          unoptimized
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
-    
-                <div className="text-center text-sm text-muted-foreground">
-                  {previewImages.length > 1 && (
-                    <p>Image {currentPreviewIndex + 1} of {Math.min(files.length, 5)}</p>
-                  )}
-                  {files.length > 5 && (
-                    <p className="mt-1">Showing first 5 images of {files.length} total</p>
-                  )}
-                </div>
-              </div>
-    
-              <DialogFooter className="flex justify-between ">
-                <div className="flex items-center space-x-2  ">
-                 <Button 
-  type="button"
-  variant="outline" 
-  onClick={handleClosePreview}
->
-  Cancel
-</Button>
+                  </Button> */}
 
-{/* <Button
-  type="button"
-  variant="outline"
-  size="icon"
-  onClick={handleRotate}
-  title="Rotate Image"
->
-  <RotateCw className="h-4 w-4" />
-</Button> */}
 
+                     {/* DOWNLOAD BUTTON */}
+       <div className="fixed bottom-0 right-0 w-full lg:w-[30%] p-6 bg-white border-t z-50">
+  <Button
+    onClick={handleDownload}
+    className="w-full h-[64px] text-lg font-semibold rounded-2xl"
+  >
+    Download All Images
+  </Button>
+</div>
+                </div>
+             
+
+
+     
       </div>
-                <Button
-  type="button"
-  onClick={handleDownload}
->
-  Download All
-</Button>
-           
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-    
-          {/* <div className="grid gap-4 mb-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Image Effects</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ImageEffects
-                  currentRotation={currentImageEffects.rotation}
-                  currentFilter={currentImageEffects.filter}
-                  currentFilterValue={currentImageEffects.filterValue}
-                  onRotate={handleRotate}
-                  onFilterChange={handleFilterChange}
-                />
-              </CardContent>
-            </Card>
-          </div> */}
+    </div>
+  </div>
+
         </div>
   )
 }
 
 export default Compress;
+
+// function handleFiles(files: FileList): File[] {
+//   return Array.from(files).filter(file => file.type.startsWith('image/'));
+// }

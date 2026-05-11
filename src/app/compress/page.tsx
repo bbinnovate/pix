@@ -1,4 +1,5 @@
 import React from 'react'
+import Header from '../components/Header'
 import Navbar from '../components/Navbar'
 import Compress from '../components/Compress'
 import Footer from '../components/Footer'
@@ -17,10 +18,10 @@ const Index = () => {
   return (
     <div>
       <SmoothScroll>
-      <Taxi/> 
-      <Navbar />
+      {/* <Taxi/>  */}
+      <Header />
       <Compress />
-      <Footer />
+      {/* <Footer /> */}
       </SmoothScroll>
     </div>
   )

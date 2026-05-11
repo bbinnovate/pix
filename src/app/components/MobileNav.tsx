@@ -15,6 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Effects", href: "/effects" },
   { label: "Resize", href: "/resize" },
   { label: "PDF to Image", href: "/pdf-to-image" },
+  { label: "Expense Tracker", href: "https://expenses.bombayblokes.com" },
   { label: "Cost Estimator", href: "https://bombayblokes.com/estimates-calculator" },
 ];
 
