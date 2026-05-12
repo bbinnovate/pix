@@ -1,5 +1,5 @@
 import React from 'react'
-import Navbar from '../components/Navbar'
+import Header from '../components/Header'
 import PdfToImage from '../components/PdfToImage'
 import Footer from '../components/Footer'
 import SmoothScroll from '../components/SmoothScroll'
@@ -16,10 +16,8 @@ const Index = () => {
   return (
     <div>
       <SmoothScroll>
-      <Taxi/> 
-      <Navbar/>
+      <Header/>
       <PdfToImage/>
-      <Footer/>
       </SmoothScroll>
     </div>
   )

@@ -99,7 +99,8 @@ const handleFileChange = async (
 
 const dropHandler = async (e: React.DragEvent) => {
   e.preventDefault();
-  setIsDragging(false);
+
+   setIsDragging(false);
 
   if (!e.dataTransfer.files) return;
 
@@ -122,9 +123,13 @@ const dropHandler = async (e: React.DragEvent) => {
   setCurrentPreviewIndex(0);
 };
 
-  const dragOverHandler = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
+const dragOverHandler = (
+  e: React.DragEvent<HTMLDivElement>
+) => {
+  e.preventDefault();
+
+  setIsDragging(true);
+};
 
   const dragLeaveHandler = () => {
   setIsDragging(false);
@@ -423,7 +428,7 @@ const handleAddMoreImages = async (
   
 <div
   className="
-    flex
+   flex items-center justify-center
     flex-wrap
     gap-3
     lg:mt-6
@@ -495,7 +500,7 @@ const handleAddMoreImages = async (
 
 
  {/* RIGHT SIDE - EDIT PANEL */}
-<div className=" w-full lg:w-[30%] flex lg:mt-0 mt-5  ">
+  <div className=" w-full lg:w-[30%] flex lg:mt-0 mt-5  ">
   <div className="bg-white w-full flex min-h-[380px] lg:min-h-[630px] flex-col justify-between self-stretch p-6 space-y-6 shadow-[-10px_0px_30px_rgba(0,0,0,0.04)]">
   
                 <div className="space-y-6">

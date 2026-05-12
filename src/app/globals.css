@@ -552,3 +552,49 @@ h6 {
     --chart-5: 340 75% 55%;
   }
 }
+
+
+@keyframes scannerMove {
+  0% {
+    transform: translateY(-140%);
+  }
+
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.scan-line {
+  animation: scannerMove 2.8s linear infinite;
+
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(250, 179, 30, 0.08) 15%,
+    rgba(250, 179, 30, 0.25) 30%,
+    rgba(250, 179, 30, 0.95) 50%,
+    rgba(250, 179, 30, 0.25) 70%,
+    rgba(250, 179, 30, 0.08) 85%,
+    transparent 100%
+  );
+
+  backdrop-filter: blur(2px);
+
+  box-shadow:
+    0 0 30px rgba(250, 179, 30, 0.95),
+    0 0 80px rgba(250, 179, 30, 0.45),
+    0 0 120px rgba(250, 179, 30, 0.25);
+}
+
+.scan-glow {
+  animation: scannerMove 2.8s linear infinite;
+
+  background: radial-gradient(
+    ellipse at center,
+    rgba(250, 179, 30, 0.22) 0%,
+    rgba(250, 179, 30, 0.1) 35%,
+    transparent 75%
+  );
+
+  filter: blur(45px);
+}

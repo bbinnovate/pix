@@ -11,7 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./select";
-import { RotateCw, RotateCcw } from "lucide-react";
+import { RotateCw, RotateCcw, ChevronDown } from "lucide-react";
+import { useState } from "react";
 
 export type Filter = "none" | "grayscale" | "sepia" | "blur" | "brightness" | "contrast";
 
@@ -30,8 +31,20 @@ export function ImageEffects({
   currentFilter,
   currentFilterValue,
 }: ImageEffectsProps) {
+
+
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+const filterOptions = [
+  { value: "none", label: "None" },
+  { value: "grayscale", label: "Grayscale" },
+  { value: "sepia", label: "Sepia" },
+  { value: "blur", label: "Blur" },
+  { value: "brightness", label: "Brightness" },
+  { value: "contrast", label: "Contrast" },
+];
   return (
-    <div className="space-y-4 p-4 border rounded-[10px]">
+    <div className="space-y-4  rounded-[10px]">
       <div className="space-y-2">
         <Label>Rotation</Label>
         <div className="flex items-center gap-2">
@@ -57,22 +70,56 @@ export function ImageEffects({
 
       <div className="space-y-2">
         <Label>Filter</Label>
-        <Select
-          value={currentFilter}
-          onValueChange={(value: Filter) => onFilterChange(value, currentFilterValue)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select a filter" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">None</SelectItem>
-            <SelectItem value="grayscale">Grayscale</SelectItem>
-            <SelectItem value="sepia">Sepia</SelectItem>
-            <SelectItem value="blur">Blur</SelectItem>
-            <SelectItem value="brightness">Brightness</SelectItem>
-            <SelectItem value="contrast">Contrast</SelectItem>
-          </SelectContent>
-        </Select>
+       <div className="relative isolate">
+  <button
+    type="button"
+    onClick={() => setIsFilterOpen((prev) => !prev)}
+    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-all hover:border-gray-400 focus:outline-none"
+  >
+    <span className="font-medium">
+      {
+        filterOptions.find(
+          (item) => item.value === currentFilter
+        )?.label
+      }
+    </span>
+
+    <ChevronDown
+      className={`h-4 w-4 transition-transform duration-200 ${
+        isFilterOpen ? "rotate-180" : ""
+      }`}
+    />
+  </button>
+
+  {isFilterOpen && (
+<div className="absolute left-0 top-[calc(100%+8px)] z-[99999] w-full rounded-xl border border-gray-200 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.12)] backdrop-blur-xl">      <div className="max-h-[260px] overflow-y-auto p-1">
+      
+        {filterOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => {
+              onFilterChange(
+                option.value as Filter,
+                currentFilterValue
+              );
+
+              setIsFilterOpen(false);
+            }}
+             className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-all ${
+              currentFilter === option.value
+                ? "bg-black text-white"
+                : "hover:bg-gray-100"
+            }`}
+           
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
 
         {currentFilter !== "none" && (
           <div className="space-y-2">
