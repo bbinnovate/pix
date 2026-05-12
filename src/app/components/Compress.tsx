@@ -676,9 +676,11 @@ const handleAddMoreImages = async (
 <div className="w-full max-w-[1600px] mx-auto flex flex-col lg:flex-row  lg:gap-6 gap-0 ">
     
     {/* LEFT SIDE - IMAGE PREVIEW */}
-    <div className="w-full  lg:w-[70%] lg:pt-10  pt-0 ">
+    <div className="w-full  lg:w-[70%] lg:pt-10  pt-10 ">
 
-<div className="relative w-full min-h-[400px] rounded-[28px] flex items-center justify-center overflow-hidden">{/* {isProcessing && (
+<div className="relative w-full min-h-[400px] rounded-[28px] flex items-center justify-center ">
+  
+  {/* {isProcessing && (
   <div className="absolute  inset-0 z-20  backdrop-blur-sm flex items-center justify-center">
     
     <div className="flex flex-col items-center gap-4">
@@ -795,16 +797,15 @@ const handleAddMoreImages = async (
       {/* THUMBNAILS */}
 {previewImages.length > 0 && (
   
-  <div
+<div
   className="
-    grid
-    grid-cols-3
-    sm:grid-cols-4
-    md:grid-cols-5
-    lg:grid-cols-6
-    gap-1
-    lg:mt-6 mt-3
-    pb-2
+    flex items-center justify-center
+    flex-wrap
+    gap-3
+    lg:mt-6
+    mt-5
+    pb-2 
+   
   "
 >
     {previewImages.map((preview, index) => (
@@ -869,9 +870,12 @@ const handleAddMoreImages = async (
     </div>
 
     {/* RIGHT SIDE - EDIT PANEL */}
-    <div className="w-full lg:w-[30%] relative">
-<div className="bg-white h-[70%] min-h-[805px]  p-6 pb-40 space-y-6 shadow-[-10px_0px_30px_rgba(0,0,0,0.04)]">                <div className="space-y-6">
-                  <div className="space-y-6 lg:pt-10  pt-0">
+<div className=" w-full lg:w-[30%] flex lg:mt-0 mt-5  ">
+  <div className="bg-white w-full flex min-h-[900px] lg:min-h-[900px] flex-col justify-between self-stretch p-6 space-y-6 shadow-[-10px_0px_30px_rgba(0,0,0,0.04)]">
+  
+                 <div className="space-y-6">
+                  <div className="space-y-6 ">
+                    <h3> Image Compress</h3>
                     <div className="flex flex-col space-y-2">
                       <Label htmlFor="compression-level">Compression Level</Label>
                       <div className="relative isolate">
@@ -1175,18 +1179,7 @@ const handleAddMoreImages = async (
                     </div>
                   )}
                   
-                  {/* <Button
-                    className="w-full"
-                    onClick={() => processImages()}
-                    disabled={
-                      isProcessing || 
-                      (enableWatermark && 
-                        ((watermarkType === "text" && !watermarkText) || 
-                         (watermarkType === "logo" && !watermarkLogo)))
-                    }
-                  >
-                    {isProcessing ? "Processing..." : "Preview Results"}
-                  </Button> */}
+                 
 
 
                      {/* DOWNLOAD BUTTON */}

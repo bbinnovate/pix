@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,8 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight ,Plus, X } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 interface ResizeOptions {
   width: number;
@@ -18,12 +19,24 @@ interface ResizeOptions {
   maintainAspectRatio: boolean;
 }
 
+interface ImageMetadata {
+  width: number;
+  height: number;
+  orientation: number;
+  rotation: number;
+  filter: string;
+  filterValue: number;
+}
+
 export default function Resize() {
   const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 const [previewImages, setPreviewImages] = useState<string[]>([]);
 const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
 const [showThumbnails] = useState(true);
+const [imageMetadata, setImageMetadata] = useState<ImageMetadata[]>([]);
   const [resizeOptions, setResizeOptions] = useState<ResizeOptions>({
     width: 800,
     height: 600,
@@ -31,22 +44,91 @@ const [showThumbnails] = useState(true);
   });
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFiles(Array.from(e.target.files));
-    }
-  };
+  useEffect(() => {
+  if (
+    !resizeOptions.maintainAspectRatio ||
+    imageMetadata.length === 0
+  )
+    return;
 
-  const dropHandler = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files) {
-      setFiles(Array.from(e.dataTransfer.files));
-    }
-  };
+  const firstImage = imageMetadata[0];
+
+  const aspectRatio =
+    firstImage.height / firstImage.width;
+
+  const calculatedHeight = Math.round(
+    resizeOptions.width * aspectRatio
+  );
+
+  setResizeOptions((prev) => ({
+    ...prev,
+    height: calculatedHeight,
+  }));
+}, [
+  resizeOptions.width,
+  resizeOptions.maintainAspectRatio,
+  imageMetadata,
+]);
+
+const handleFileChange = async (
+  e: React.ChangeEvent<HTMLInputElement>
+) => {
+  if (!e.target.files) return;
+
+  const selectedFiles = Array.from(e.target.files);
+
+  // metadata
+  const metadata = await Promise.all(
+    selectedFiles.map((file) => getImageMetadata(file))
+  );
+
+  // preview urls
+  const previewUrls = selectedFiles.map((file) =>
+    URL.createObjectURL(file)
+  );
+
+  setFiles(selectedFiles);
+  setImageMetadata(metadata);
+
+  // IMPORTANT
+  setPreviewImages(previewUrls);
+
+  // show first image automatically
+  setCurrentPreviewIndex(0);
+};
+
+const dropHandler = async (e: React.DragEvent) => {
+  e.preventDefault();
+  setIsDragging(false);
+
+  if (!e.dataTransfer.files) return;
+
+  const droppedFiles = Array.from(e.dataTransfer.files);
+
+  // metadata
+  const metadata = await Promise.all(
+    droppedFiles.map((file) => getImageMetadata(file))
+  );
+
+  // preview urls
+  const previewUrls = droppedFiles.map((file) =>
+    URL.createObjectURL(file)
+  );
+
+  setFiles(droppedFiles);
+  setImageMetadata(metadata);
+  setPreviewImages(previewUrls);
+
+  setCurrentPreviewIndex(0);
+};
 
   const dragOverHandler = (e: React.DragEvent) => {
     e.preventDefault();
   };
+
+  const dragLeaveHandler = () => {
+  setIsDragging(false);
+};
 
   const resizeImage = async (file: File): Promise<Blob> => {
     return new Promise((resolve) => {
@@ -61,13 +143,11 @@ const img = new window.Image();
           let targetHeight = resizeOptions.height;
 
           if (resizeOptions.maintainAspectRatio) {
-            const ratio = Math.min(
-              resizeOptions.width / img.width,
-              resizeOptions.height / img.height
-            );
-            targetWidth = img.width * ratio;
-            targetHeight = img.height * ratio;
-          }
+  const aspectRatio = img.height / img.width;
+
+  targetWidth = resizeOptions.width;
+  targetHeight = resizeOptions.width * aspectRatio;
+}
 
           canvas.width = targetWidth;
           canvas.height = targetHeight;
@@ -88,6 +168,30 @@ const img = new window.Image();
       reader.readAsDataURL(file);
     });
   };
+
+
+     const getImageMetadata = (
+  file: File
+): Promise<ImageMetadata> => {
+          return new Promise((resolve) => {
+            const img = new window.Image();
+            const url = URL.createObjectURL(file);
+      
+            img.onload = () => {
+              URL.revokeObjectURL(url);
+              resolve({
+                width: img.width,
+                height: img.height,
+                orientation: 1, // Default orientation
+                rotation: 0,
+                filter: "none",
+                filterValue: 50,
+              });
+            };
+      
+            img.src = url;
+          });
+        };
 
  const processImages = async () => {
   if (files.length === 0) return;
@@ -113,62 +217,290 @@ const img = new window.Image();
 
 
 const handleDownload = async () => {
-  const zip = new JSZip();
-  const folder = zip.folder("resized-images");
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const blob = await resizeImage(files[i]);
 
-  for (let i = 0; i < files.length; i++) {
-    const blob = await resizeImage(files[i]);
-    folder?.file(files[i].name, blob);
+      const fileName = files[i].name.replace(
+        /\.[^/.]+$/,
+        ""
+      );
+
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${fileName}.jpg`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
+    }
+
+    setPreviewOpen(false);
+  } catch (error) {
+    console.error("Download failed:", error);
   }
-
-  const content = await zip.generateAsync({ type: "blob" });
-  saveAs(content, "resized-images.zip");
-
-  setPreviewOpen(false);
 };
 
 const handleClosePreview = () => {
   setPreviewOpen(false);
 };
 
-  return (
-    <div className="min-h-[calc(100vh-160px)] flex justify-center px-6 lg:pt-40  pt-0">
-       <Card className="w-full max-w-3xl">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">
-            Image Resizer
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div
-            className="border-2 border-dashed rounded-lg p-8 text-center mb-4"
-            onDrop={dropHandler}
-            onDragOver={dragOverHandler}
-          >
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-              id="file-input"
-            />
-            <label
-              htmlFor="file-input"
-              className="cursor-pointer text-primary hover:text-primary/80"
-            >
-              Click to upload
-            </label>{" "}
-            or drag and drop your images here
-            {files.length > 0 && (
-              <p className="mt-2 text-sm text-muted-foreground">
-                {files.length} file(s) selected
-              </p>
-            )}
-          </div>
+  function clsx(arg0: string, arg1: string): string | undefined {
+    const classes = [arg0, arg1].filter(Boolean);
+    return classes.length > 0 ? classes.join(' ') : undefined;
+  }
 
-          {files.length > 0 && (
-            <div className="space-y-6">
+
+       const removeImage = (indexToRemove: number) => {
+  const updatedPreviews = previewImages.filter(
+    (_, index) => index !== indexToRemove
+  );
+
+  const updatedFiles = files.filter(
+    (_, index) => index !== indexToRemove
+  );
+
+  setPreviewImages(updatedPreviews);
+  setFiles(updatedFiles);
+
+  if (currentPreviewIndex >= updatedPreviews.length) {
+    setCurrentPreviewIndex(
+      Math.max(updatedPreviews.length - 1, 0)
+    );
+  }
+};
+
+
+const handleAddMoreImages = async (
+  e: React.ChangeEvent<HTMLInputElement>
+) => {
+  if (!e.target.files) return;
+
+  const newFiles = Array.from(e.target.files);
+
+  const metadata = await Promise.all(
+    newFiles.map((file) => getImageMetadata(file))
+  );
+
+  // append files
+  setFiles((prev) => [...prev, ...newFiles]);
+
+  // append metadata
+  setImageMetadata((prev) => [...prev, ...metadata]);
+
+  // append preview urls
+  const newPreviewUrls = newFiles.map((file) =>
+    URL.createObjectURL(file)
+  );
+
+  setPreviewImages((prev) => [
+    ...prev,
+    ...newPreviewUrls,
+  ]);
+
+  // reset input
+  e.target.value = "";
+};
+
+  return (
+      <div className=" container min-h-[calc(100vh-160px)] flex justify-center flex-col px-6 lg:pt-20  pt-0">
+
+ 
+<div className="w-full max-w-[1600px] mx-auto flex flex-col lg:flex-row items-stretch lg:gap-6 gap-0">
+    
+    {/* LEFT SIDE - IMAGE PREVIEW */}
+             <div className="w-full  lg:w-[70%] lg:pt-10  pt-10 ">
+
+<div className="relative w-full min-h-[400px] rounded-[28px] flex items-center justify-center ">
+  
+
+        {/* IMAGE */}
+        {previewImages.length > 0 ? (
+         <Image
+  src={previewImages[currentPreviewIndex]}
+  alt="Preview"
+  width={700}
+  height={700}
+  className="object-contain  lg:mt-0 mt-20 max-h-[450px] w-auto h-auto border-2   border-black rounded-[20px] shadow-lg p-2 bg-white"
+  unoptimized
+/>
+        ) : (
+            <div
+  className={`container border-2 border-dashed rounded-[24px]
+  lg:h-[370px] h-[220px]
+  lg:mt-0 mt-20
+  px-6 py-8
+  text-center
+  flex flex-col items-center justify-center
+  gap-3
+  mb-4
+  transition-all duration-300 ${
+    isDragging
+      ? "bg-yellow-50 border-yellow-300"
+      : "bg-background border-border"
+  }`}
+  onDrop={dropHandler}
+  onDragOver={dragOverHandler}
+  onDragLeave={dragLeaveHandler}
+>
+  <input
+    type="file"
+    multiple
+    accept="image/*"
+    onChange={handleFileChange}
+    className="hidden"
+    id="file-input"
+  />
+
+  <label
+    htmlFor="file-input"
+    className="
+      cursor-pointer
+      bg-black
+      text-white
+      px-5 py-3
+      rounded-xl
+      text-sm lg:text-base
+      font-medium
+      transition-all
+      hover:scale-[1.03]
+      hover:bg-[#222]
+    "
+  >
+    Click to Upload
+  </label>
+
+  <p className="text-sm lg:text-base text-muted-foreground max-w-[280px] leading-relaxed">
+    or drag and drop your images here
+  </p>
+
+  {files.length > 0 && (
+    <p className="text-sm text-muted-foreground">
+      {files.length} file(s) selected
+    </p>
+  )}
+</div>
+        )}
+
+        {/* NAVIGATION */}
+        {previewImages.length > 1 && (
+          <>
+
+        
+            <button
+              onClick={() =>
+                setCurrentPreviewIndex((prev) =>
+                  prev > 0 ? prev - 1 : previewImages.length - 1
+                )
+              }
+              className="absolute left-4 top-1/2 -translate-y-1/2 lg:mt-0 mt-10  bg-black backdrop-blur-md text-white lg:p-3 p-1 rounded-full"
+            >
+              <ChevronLeft />
+            </button>
+
+            <button
+              onClick={() =>
+                setCurrentPreviewIndex((prev) =>
+                  prev < previewImages.length - 1 ? prev + 1 : 0
+                )
+              }
+              className="absolute right-4 top-1/2 -translate-y-1/2 lg:mt-0 mt-10 bg-black backdrop-blur-md text-white lg:p-3 p-1 rounded-full"
+            >
+              <ChevronRight />
+            </button>
+           
+          </>
+        )}
+      </div>
+
+      {/* THUMBNAILS */}
+      {/* THUMBNAILS */}
+{previewImages.length > 0 && (
+  
+<div
+  className="
+    flex
+    flex-wrap
+    gap-3
+    lg:mt-6
+    mt-3
+    pb-2
+  "
+>
+    {previewImages.map((preview, index) => (
+      <div
+        key={index}
+        className={clsx(
+          "relative w-24 h-24 rounded-[22px] overflow-hidden border-2 flex-shrink-0 transition-all duration-200",
+          index === currentPreviewIndex
+            ? "border-yellow-400 "
+            : "border-transparent"
+        )}
+      >
+        {/* REMOVE BUTTON */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            removeImage(index);
+          }}
+          className="absolute top-1 right-2 z-20 w-5 h-5 rounded-full bg-black hover:bg-[#fab31e] text-white flex items-center justify-center shadow-lg hover:scale-110 transition-all"
+        >
+          <X size={14} />
+        </button>
+
+        {/* IMAGE */}
+        <button
+          type="button"
+          onClick={() => setCurrentPreviewIndex(index)}
+          className="relative w-full h-full"
+        >
+          <Image
+            src={preview}
+            alt=""
+            fill
+            className="object-cover"
+            unoptimized
+          />
+        </button>
+      </div>
+    ))}
+
+    {/* ADD MORE */}
+   <>
+  <input
+    type="file"
+    multiple
+    accept="image/*"
+    id="add-more-images"
+    className="hidden"
+    onChange={handleAddMoreImages}
+  />
+
+  <label
+    htmlFor="add-more-images"
+    className="w-24 h-24 rounded-[22px] bg-[#151217] flex items-center justify-center flex-shrink-0 cursor-pointer transition-all "
+  >
+    <Plus className="text-white" size={26} />
+  </label>
+</>
+  </div>
+)}
+    </div>
+
+
+
+ {/* RIGHT SIDE - EDIT PANEL */}
+<div className=" w-full lg:w-[30%] flex lg:mt-0 mt-5  ">
+  <div className="bg-white w-full flex min-h-[380px] lg:min-h-[630px] flex-col justify-between self-stretch p-6 space-y-6 shadow-[-10px_0px_30px_rgba(0,0,0,0.04)]">
+  
+                <div className="space-y-6">
+                    <h3> Image Resize</h3>
+                  <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="width">Width (px)</Label>
@@ -188,17 +520,23 @@ const handleClosePreview = () => {
                 <div className="space-y-2">
                   <Label htmlFor="height">Height (px)</Label>
                   <Input
-                    id="height"
-                    type="number"
-                    value={resizeOptions.height}
-                    onChange={(e) =>
-                      setResizeOptions((prev) => ({
-                        ...prev,
-                        height: Number(e.target.value),
-                      }))
-                    }
-                    min={1}
-                  />
+  id="height"
+  type="number"
+  value={resizeOptions.height}
+  disabled={resizeOptions.maintainAspectRatio}
+  onChange={(e) =>
+    setResizeOptions((prev) => ({
+      ...prev,
+      height: Number(e.target.value),
+    }))
+  }
+  min={1}
+  className={
+    resizeOptions.maintainAspectRatio
+      ? "opacity-60 cursor-not-allowed"
+      : ""
+  }
+/>
                 </div>
               </div>
 
@@ -216,79 +554,43 @@ const handleClosePreview = () => {
                 <Label htmlFor="aspect-ratio">Maintain aspect ratio</Label>
               </div>
 
-              <Button
+              {/* <Button
                 className="w-full"
                 onClick={processImages}
                 disabled={isProcessing}
               >
                 {isProcessing ? "Processing..." : "Resize Images"}
-              </Button>
+              </Button> */}
             </div>
-          )}
-        </CardContent>
+    
+                  {isProcessing && (
+                    <div className="space-y-2">
+                      <Progress value={progress} />
+                      <p className="text-sm text-center text-muted-foreground">
+                        Processing... {Math.round(progress)}%
+                      </p>
+                    </div>
+                  )}
+                  
+                 
 
-        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-  <DialogContent className="max-w-4xl bg-white">
-    <DialogHeader>
-      <DialogTitle>Preview Results</DialogTitle>
-      <DialogDescription>
-        Preview resized images before downloading.
-      </DialogDescription>
-    </DialogHeader>
+                     {/* DOWNLOAD BUTTON */}
+         <div className="fixed bottom-0 right-0 w-full lg:w-[30%] p-6 bg-white border-t z-50">
+  <Button
+    onClick={handleDownload}
+    className="w-full h-[64px] text-lg font-semibold rounded-2xl"
+  >
+    Download All Images
+  </Button>
+</div>
+                </div>
+             
 
-    <div className="space-y-4">
-      <div className="relative aspect-video bg-black rounded-[15px] overflow-hidden">
-        {previewImages.length > 0 && (
-          <img
-            src={previewImages[currentPreviewIndex]}
-            className="object-contain w-full h-full"
-          />
-        )}
 
-        {previewImages.length > 1 && (
-          <>
-            <Button
-              variant="outline"
-              size="icon"
-              className="absolute left-2 top-1/2 -translate-y-1/2"
-              onClick={() =>
-                setCurrentPreviewIndex((prev) =>
-                  prev > 0 ? prev - 1 : previewImages.length - 1
-                )
-              }
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-
-            <Button
-              variant="outline"
-              size="icon"
-              className="absolute right-2 top-1/2 -translate-y-1/2"
-              onClick={() =>
-                setCurrentPreviewIndex((prev) =>
-                  prev < previewImages.length - 1 ? prev + 1 : 0
-                )
-              }
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </>
-        )}
+     
       </div>
-
-      <DialogFooter className="flex justify-between">
-        <Button variant="outline" onClick={handleClosePreview}>
-          Cancel
-        </Button>
-
-        <Button onClick={handleDownload}>
-          Download All
-        </Button>
-      </DialogFooter>
     </div>
-  </DialogContent>
-</Dialog>
-      </Card>
+      </div>
     </div>
   );
 } 
